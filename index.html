@@ -199,6 +199,13 @@ footer .cred a{color:#7fe9cf;font-weight:600}
 .tico svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:1.8}
 .tcard h4{font-size:17px} .tcard .ts{font-size:13px;color:var(--muted);margin-top:3px}
 .tcard .tsoon{color:var(--aqua);font-style:italic}
+.tcard-btn{cursor:pointer} .tcard-btn:focus-visible{outline:2px solid var(--teal);outline-offset:3px}
+.tcard .tsview{color:var(--teal);font-weight:600}
+.pdf-card{max-width:920px;width:100%;height:88vh;display:flex;flex-direction:column;padding:24px 22px 18px}
+.pdf-card h3{margin-bottom:14px}
+.pdf-scroll{flex:1;overflow:auto;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:16px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.pdf-scroll canvas{display:block;margin:0 auto 14px;max-width:100%;height:auto;box-shadow:var(--sh);border-radius:4px}
+.pdf-loading{color:var(--muted);text-align:center;padding:40px 16px}
 
 .reveal{opacity:0;transform:translateY(26px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
 .reveal.in{opacity:1;transform:none}
@@ -337,7 +344,7 @@ footer .cred a{color:#7fe9cf;font-weight:600}
  <div class="shead reveal"><span class="eyebrow">Trasparenza</span><h2>Documenti del Consorzio</h2>
   <p>Statuto, bilanci e verbali delle assemblee, a disposizione dei consorziati.</p></div>
  <div class="tgrid">
-  <div class="tcard reveal"><div class="tico"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></div><div><h4>Statuto</h4><div class="ts tsoon">Documento da caricare</div></div></div>
+  <div class="tcard reveal tcard-btn" id="statuto-card" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="statuto-modal"><div class="tico"><svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></div><div><h4>Statuto</h4><div class="ts tsview">Consulta il documento →</div></div></div>
   <div class="tcard reveal"><div class="tico"><svg viewBox="0 0 24 24"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></div><div><h4>Verbali assemblea</h4><div class="ts tsoon">Documenti da caricare</div></div></div>
  </div>
 </div></section>
@@ -439,6 +446,16 @@ footer .cred a{color:#7fe9cf;font-weight:600}
  </div>
 </div>
 
+<div class="modal-ov pdf-ov" id="statuto-modal" role="dialog" aria-modal="true" aria-labelledby="statuto-modal-title">
+ <div class="modal-card pdf-card">
+  <button type="button" class="modal-close" aria-label="Chiudi" data-close-pdf>&times;</button>
+  <h3 id="statuto-modal-title">Statuto del Consorzio</h3>
+  <div class="pdf-scroll" id="statuto-pages" oncontextmenu="return false" ondragstart="return false">
+   <div class="pdf-loading">Caricamento del documento…</div>
+  </div>
+ </div>
+</div>
+
 <footer>
  <div class="wrap">
   <div class="fbig">Consorzio Acquedotto Rurale di Valcieca</div>
@@ -483,6 +500,48 @@ if(adottaCard&&adottaModal){
  adottaModal.addEventListener('click',function(e){if(e.target===adottaModal)closeAdotta()});
  adottaModal.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',closeAdotta)});
  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAdotta()});
+}
+
+/* Visore Statuto (PDF non scaricabile, reso via canvas con PDF.js) */
+var statutoCard=document.getElementById('statuto-card'),statutoModal=document.getElementById('statuto-modal');
+var statutoRendered=false,pdfLibLoading=false;
+function openStatuto(){statutoModal.classList.add('open');document.body.style.overflow='hidden';renderStatuto()}
+function closeStatuto(){statutoModal.classList.remove('open');document.body.style.overflow=''}
+function loadPdfLib(cb){
+ if(window.pdfjsLib){cb();return}
+ if(pdfLibLoading){var t=setInterval(function(){if(window.pdfjsLib){clearInterval(t);cb()}},80);return}
+ pdfLibLoading=true;
+ var s=document.createElement('script');
+ s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+ s.onload=function(){window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';cb()};
+ s.onerror=function(){var h=document.getElementById('statuto-pages');if(h)h.innerHTML='<div class="pdf-loading">Impossibile caricare il visore. Riprova più tardi.</div>'};
+ document.head.appendChild(s);
+}
+function renderStatuto(){
+ if(statutoRendered)return;statutoRendered=true;
+ var host=document.getElementById('statuto-pages');
+ loadPdfLib(function(){
+  window.pdfjsLib.getDocument('assets/docs/statuto.pdf').promise.then(function(pdf){
+   host.innerHTML='';
+   var scale=Math.min(2,(window.devicePixelRatio||1)+0.5);
+   (function page(n){
+    pdf.getPage(n).then(function(pg){
+     var vp=pg.getViewport({scale:scale});
+     var cv=document.createElement('canvas');
+     cv.width=vp.width;cv.height=vp.height;
+     host.appendChild(cv);
+     pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise.then(function(){if(n<pdf.numPages)page(n+1)});
+    });
+   })(1);
+  }).catch(function(){host.innerHTML='<div class="pdf-loading">Impossibile caricare il documento in questo momento.</div>'});
+ });
+}
+if(statutoCard&&statutoModal){
+ statutoCard.addEventListener('click',openStatuto);
+ statutoCard.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();openStatuto()}});
+ statutoModal.addEventListener('click',function(e){if(e.target===statutoModal)closeStatuto()});
+ statutoModal.querySelectorAll('[data-close-pdf]').forEach(function(b){b.addEventListener('click',closeStatuto)});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&statutoModal.classList.contains('open'))closeStatuto()});
 }
 </script>
 </body>
